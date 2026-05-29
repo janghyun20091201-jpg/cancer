@@ -1,4 +1,4 @@
-```python
+
 # 폐암 환자 군집 분석 머신러닝 모델 (K-means, K=4)
 
 import os
@@ -533,4 +533,3 @@ if st.button("군집 예측하기"):
         st.error(
             f"예측 실패: {e}"
         )
-```
