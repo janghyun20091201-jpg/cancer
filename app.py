@@ -1,4 +1,3 @@
-
 # 폐암 환자 군집 분석 머신러닝 모델 (K-means, K=4)
 #
 # 동작 방식:
@@ -8,6 +7,8 @@
 # 필요한 파일: lung.csv  (lung_model.pkl, scaler.pkl 은 있으면 사용)
 
 import os
+import tempfile
+import urllib.request
 import streamlit as st
 import numpy as np
 import pandas as pd
@@ -16,25 +17,72 @@ import matplotlib.pyplot as plt
 import matplotlib.font_manager as fm
 import matplotlib as mpl
 
-# ─────────────────────────────────────────────────────────────
-# 한글 폰트 설정 (Windows 한글 깨짐 해결)
-# ─────────────────────────────────────────────────────────────
-try:
-    font_path = "C:/Windows/Fonts/malgun.ttf"  # 맑은 고딕
-    font_name = fm.FontProperties(fname=font_path).get_name()
-    mpl.rc("font", family=font_name)
 
-    # 마이너스 깨짐 방지
+# ─────────────────────────────────────────────────────────────
+# 한글 폰트 설정 (웹폰트 자동 다운로드 → 배포 환경 한글 깨짐 해결)
+#
+#   1) OS에 설치된 한글 폰트가 있으면 그대로 사용 (Windows / macOS / Linux)
+#   2) 없으면 웹에서 나눔고딕(NanumGothic) TTF 를 받아 matplotlib 에 등록
+#
+#   Streamlit Cloud 같은 리눅스 서버에는 'C:/Windows/Fonts/malgun.ttf' 가
+#   존재하지 않아 그래프 한글이 □□□ 로 깨지는데, 아래 함수가 이를 막아줍니다.
+# ─────────────────────────────────────────────────────────────
+@st.cache_resource(show_spinner=False)
+def setup_korean_font():
+    """한글 폰트를 등록하고 폰트 이름을 반환. 실패 시 None."""
+
+    # 마이너스 기호 깨짐 방지
     mpl.rcParams["axes.unicode_minus"] = False
 
-except Exception:
-    pass
+    # 1) OS 기본 한글 폰트 후보 (있으면 다운로드 없이 바로 사용)
+    local_candidates = [
+        "C:/Windows/Fonts/malgun.ttf",                      # Windows 맑은 고딕
+        "/System/Library/Fonts/AppleSDGothicNeo.ttc",       # macOS
+        "/usr/share/fonts/truetype/nanum/NanumGothic.ttf",  # Linux 나눔고딕(설치 시)
+    ]
 
-# koreanize_matplotlib 있으면 추가 적용
+    for path in local_candidates:
+        if os.path.exists(path):
+            try:
+                fm.fontManager.addfont(path)
+                name = fm.FontProperties(fname=path).get_name()
+                mpl.rc("font", family=name)
+                return name
+            except Exception:
+                pass
+
+    # 2) 웹폰트 다운로드 (나눔고딕 Regular, 약 2MB)
+    font_url = (
+        "https://github.com/google/fonts/raw/main/"
+        "ofl/nanumgothic/NanumGothic-Regular.ttf"
+    )
+
+    cache_dir = os.path.join(tempfile.gettempdir(), "kfonts")
+    os.makedirs(cache_dir, exist_ok=True)
+    font_path = os.path.join(cache_dir, "NanumGothic-Regular.ttf")
+
+    try:
+        # 이미 받아둔 게 없거나 너무 작으면(다운로드 실패 잔여물) 다시 받기
+        if not os.path.exists(font_path) or os.path.getsize(font_path) < 100_000:
+            urllib.request.urlretrieve(font_url, font_path)
+
+        fm.fontManager.addfont(font_path)
+        name = fm.FontProperties(fname=font_path).get_name()
+        mpl.rc("font", family=name)
+        return name
+
+    except Exception:
+        return None
+
+
+# koreanize_matplotlib 가 설치돼 있으면 보조로 사용 (선택)
 try:
     import koreanize_matplotlib  # noqa: F401
 except ImportError:
     pass
+
+# 폰트 적용 실행
+KOREAN_FONT = setup_korean_font()
 
 
 # app.py 가 있는 폴더 기준 절대경로
